@@ -1,13 +1,11 @@
-// src/app/signin/page.tsx
-"use client"
-
+﻿"use client"
 import { useState } from "react"
 import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("demo@ledgerleaf.app")
@@ -16,11 +14,7 @@ export default function SignInPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
+    const res = await signIn("credentials", { email, password, redirect: false })
     if (!res?.error) router.push("/dashboard")
     else alert("Invalid credentials")
   }
@@ -44,25 +38,9 @@ export default function SignInPage() {
             <Button type="submit" className="w-full">Continue</Button>
           </form>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              signIn("google", { callbackUrl: "/dashboard" })
-            }}
-          >
-            <Button variant="outline" className="w-full" type="submit">
-              Continue with Google
-            </Button>
-          </form>
-
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={() => {
-              setEmail("demo@ledgerleaf.app")
-              setPassword("demo")
-            }}
-          >
+          <Button variant="secondary" className="w-full" onClick={() => {
+            setEmail("demo@ledgerleaf.app"); setPassword("demo")
+          }}>
             Use demo account
           </Button>
         </CardContent>
