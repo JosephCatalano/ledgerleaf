@@ -6,12 +6,12 @@ export type ParsedCSV = {
 }
 
 export function parseCsvStrict(text: string): ParsedCSV {
-  // trim BOM if present
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+  // Trim BOM if present
+  if (text && text.charCodeAt(0) === 0xfeff) text = text.slice(1)
 
   const records: string[][] = parse(text, {
     bom: true,
-    columns: false,        // we want raw header row separately
+    columns: false,        // keep header row separate
     relaxColumnCount: true,
     skipEmptyLines: true,
     trim: true,

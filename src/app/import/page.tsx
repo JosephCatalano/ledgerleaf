@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,10 +18,10 @@ export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [res, setRes] = useState<UploadResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [accountName, setAccountName] = useState("Imported")
+  const [importResult, setImportResult] = useState<any>(null)
 
   const bankKey = useMemo(() => deriveBankKey(file?.name || "unknown.csv"), [file?.name])
-
-  // mapping state
   const [mapping, setMapping] = useState<Mapping | null>(null)
 
   async function onSubmit(e: React.FormEvent) {
@@ -33,13 +33,13 @@ export default function ImportPage() {
 
     setLoading(true)
     setRes(null)
+    setImportResult(null)
     try {
       const r = await fetch("/api/upload-csv", { method: "POST", body: form })
       const data = await r.json()
       setRes(data)
 
       if (data.headers?.length) {
-        // load preset if exists otherwise guess
         const presetRaw = localStorage.getItem(`preset:${bankKey}`)
         if (presetRaw) {
           const parsed = JSON.parse(presetRaw)
@@ -83,6 +83,20 @@ export default function ImportPage() {
     return res.sample.map((row: string[]) => normalizeRow(res.headers, row, mapping))
   }, [res, mapping])
 
+  async function onImport() {
+    if (!file || !mapping) return alert("Choose a CSV and set mapping first")
+    const form = new FormData()
+    form.append("file", file)
+    form.append("mapping", JSON.stringify(mapping))
+    form.append("accountName", accountName || "Imported")
+    const r = await fetch("/api/import/transactions", { method: "POST", body: form })
+    const data = await r.json()
+    setImportResult(data)
+    if (!r.ok) {
+      alert("Import failed: " + (data?.error ?? "Unknown error"))
+    }
+  }
+
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-6">
       <Card>
@@ -95,6 +109,12 @@ export default function ImportPage() {
               <Label htmlFor="file">CSV File</Label>
               <Input id="file" type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="account">Account Name</Label>
+              <Input id="account" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+            </div>
+
             <div className="flex items-center gap-3">
               <Button type="submit" disabled={loading || !file}>
                 {loading ? "Parsing…" : "Upload & Preview"}
@@ -151,6 +171,20 @@ export default function ImportPage() {
                       </div>
                     ))}
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button type="button" onClick={onImport}>
+                      Import to Database
+                    </Button>
+                    {importResult?.ok && (
+                      <p className="text-sm text-green-700">
+                        Imported {importResult.inserted}/{importResult.processed}. Duplicates skipped: {importResult.skippedDuplicate}. Account: {importResult.account}
+                      </p>
+                    )}
+                    {importResult?.error && (
+                      <p className="text-sm text-red-600">Error: {String(importResult.error)}</p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -183,7 +217,7 @@ export default function ImportPage() {
                     </table>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    We’ll insert these server-side in the next lesson (with proper parsing & upserts).
+                    We’ll insert these server-side in the next lessons with smarter parsing and categorization.
                   </p>
                 </div>
               )}

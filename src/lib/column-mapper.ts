@@ -28,7 +28,7 @@ export function guessMapping(headers: string[]): Omit<Mapping, "bankKey"> {
     headers.find((h) => {
       const n = norm(h)
       return candidates.some((c) => n.includes(c))
-    }) ?? headers[0] // fallback to first column if not found
+    }) ?? headers[0]
 
   return {
     date: find(H.date),
@@ -39,51 +39,44 @@ export function guessMapping(headers: string[]): Omit<Mapping, "bankKey"> {
   }
 }
 
-/** derive a bank/preset key from filename (strip extension and junk) */
 export function deriveBankKey(filename: string): string {
   if (!filename) return "unknown"
   const base = filename.replace(/\.[^.]+$/, "")
   return base.replace(/[^a-z0-9]+/gi, "-").toLowerCase()
 }
 
-/** normalize one row (best-effort) */
 export function normalizeRow(
   headers: string[],
   row: string[],
   map: Mapping
 ): { date: string; amount: number; type: "INCOME" | "EXPENSE"; description: string; merchant: string } {
   const idx = (name: string) => headers.findIndex((h) => h === name)
-
   const get = (col: string) => {
     const i = idx(col)
     return i >= 0 ? (row[i] ?? "").toString().trim() : ""
   }
 
-  // date: keep as ISO-ish string; real parsing will happen server-side later
   const date = get(map.date)
 
-  // amount: handle negative signs, parentheses, commas
   const amtRaw = get(map.amount).replace(/[$,]/g, "")
   let amount = parseFloat(amtRaw.replace(/\((.*)\)/, "-$1"))
   if (Number.isNaN(amount)) amount = 0
 
-  // type: infer if missing or weird
   let t = get(map.type).toUpperCase()
   if (!["INCOME", "EXPENSE"].includes(t)) {
-    // heuristics: negative => EXPENSE; positive => INCOME
     t = amount < 0 ? "EXPENSE" : "INCOME"
   }
 
   const description = get(map.description)
   const merchant = get(map.merchant)
 
-  // If amount is negative but type says INCOME, flip sign and type (rare CSVs)
+  // Keep positive magnitude; type conveys direction
+  amount = Math.abs(amount)
+
+  // Align sign with type if needed
   if (amount < 0 && t === "INCOME") {
     amount = Math.abs(amount)
     t = "EXPENSE"
-  }
-  if (amount > 0 && t === "EXPENSE") {
-    amount = Math.abs(amount) // keep positive, type drives direction downstream
   }
 
   return {
