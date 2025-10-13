@@ -1,5 +1,4 @@
-// prisma/seed.ts
-import { prisma } from "../src/lib/db"
+﻿import { prisma } from "../src/lib/db"
 
 async function main() {
   const demo = await prisma.user.upsert({
@@ -21,7 +20,7 @@ async function main() {
   })
 
   const uncategorized = await prisma.category.upsert({
-    where: { id: "uncat-stub" }, // use a fake id to force create once
+    where: { id: "uncat-stub" },
     update: {},
     create: { id: "uncat-stub", name: "Uncategorized" },
   })

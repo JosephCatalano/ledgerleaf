@@ -37,7 +37,6 @@ export default function SignInPage() {
             </div>
             <Button type="submit" className="w-full">Continue</Button>
           </form>
-
           <Button variant="secondary" className="w-full" onClick={() => {
             setEmail("demo@ledgerleaf.app"); setPassword("demo")
           }}>
