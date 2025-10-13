@@ -61,12 +61,19 @@ model Merchant {
 model Category {
   id        String     @id @default(cuid())
   name      String
+
+  // Self relation (parent/children)
   parent    Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
   parentId  String?
+  children  Category[] @relation("CategoryToCategory")
+
   createdAt DateTime   @default(now())
 
   transactions Transaction[]
   budgets     Budget[]
+
+  // Back-relation for Rule.category
+  rules       Rule[]
 
   @@index([parentId])
   @@unique([name, parentId])
@@ -112,15 +119,18 @@ model TransactionTag {
 }
 
 model Rule {
-  id         String   @id @default(cuid())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
   priority   Int
   field      String
   pattern    String
+
+  // Many rules can point to one category (optional)
   category   Category? @relation(fields: [categoryId], references: [id])
   categoryId String?
-  createdAt  DateTime @default(now())
+
+  createdAt  DateTime  @default(now())
 
   @@index([userId, priority])
 }
