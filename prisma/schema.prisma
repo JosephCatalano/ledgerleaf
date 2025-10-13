@@ -1,0 +1,141 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT
+  CASH
+  OTHER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts      Account[]
+  transactions  Transaction[]
+  rules         Rule[]
+  budgets       Budget[]
+}
+
+model Account {
+  id          String     @id @default(cuid())
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String
+  institution String?
+  type        AccountType
+  last4       String?
+  createdAt   DateTime   @default(now())
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Merchant {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  normalizedName String?
+  createdAt      DateTime @default(now())
+
+  transactions Transaction[]
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  parent    Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  parentId  String?
+  createdAt DateTime   @default(now())
+
+  transactions Transaction[]
+  budgets     Budget[]
+
+  @@index([parentId])
+  @@unique([name, parentId])
+}
+
+model Tag {
+  id    String  @id @default(cuid())
+  name  String  @unique
+
+  transactions TransactionTag[]
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  account     Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId   String
+  merchant    Merchant?       @relation(fields: [merchantId], references: [id])
+  merchantId  String?
+  category    Category?       @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+  date        DateTime
+  amount      Decimal         @db.Decimal(14,2)
+  type        TransactionType
+  description String
+  createdAt   DateTime        @default(now())
+
+  tags TransactionTag[]
+
+  @@index([userId, date])
+  @@index([accountId])
+  @@index([merchantId])
+  @@index([categoryId])
+}
+
+model TransactionTag {
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId String
+  tag           Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId         String
+
+  @@id([transactionId, tagId])
+}
+
+model Rule {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  priority   Int      // higher runs first
+  field      String   // "merchant" | "description" (v1 simple)
+  pattern    String   // substring/regex
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, priority])
+}
+
+model Budget {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  category   Category  @relation(fields: [categoryId], references: [id])
+  categoryId String
+  month      String    // e.g. "2025-10"
+  amount     Decimal   @db.Decimal(14,2)
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, categoryId, month])
+}

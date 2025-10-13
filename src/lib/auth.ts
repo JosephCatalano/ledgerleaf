@@ -1,6 +1,8 @@
-﻿import type { NextAuthOptions } from "next-auth"
+﻿// src/lib/auth.ts (only the authorize block changed)
+import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
+import { prisma } from "@/lib/db"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -14,7 +16,12 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(creds) {
         if (creds?.email === "demo@ledgerleaf.app" && creds?.password === "demo") {
-          return { id: "demo-user-1", name: "Demo User", email: creds.email }
+          const user = await prisma.user.upsert({
+            where: { email: "demo@ledgerleaf.app" },
+            update: { name: "Demo User" },
+            create: { email: "demo@ledgerleaf.app", name: "Demo User" },
+          })
+          return { id: user.id, name: user.name ?? "Demo User", email: user.email }
         }
         return null
       },
