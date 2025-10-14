@@ -34,7 +34,7 @@ export async function PUT(
     const validation = UpdateTransactionSchema.safeParse(body)
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: validation.error.issues },
+        { error: "Invalid input", details: validation.error.errors },
         { status: 400 }
       )
     }
@@ -55,7 +55,7 @@ export async function PUT(
 
     // If accountId is being changed, verify it belongs to user
     if (data.accountId) {
-      const account = await prisma.bankAccount.findFirst({ // <-- UPDATED
+      const account = await prisma.account.findFirst({
         where: { id: data.accountId, userId },
       })
 
@@ -81,7 +81,7 @@ export async function PUT(
       include: {
         category: true,
         merchant: true,
-        account: { select: { id: true, name: true } },
+        account: true,
       },
     })
 

@@ -15,7 +15,7 @@ async function main() {
   })
 
   // --- Demo checking account (id is the only unique on Account) ---
-  const account = await prisma.bankAccount.upsert({ // <-- UPDATED
+  const account = await prisma.account.upsert({
     where: { id: "acct_demo_checking" },
     update: {},
     create: {

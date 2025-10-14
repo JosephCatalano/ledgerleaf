@@ -1,4 +1,4 @@
-// src/app/dashboard/transactions-table.tsx
+// src/app/dashboard/TransactionsTable.tsx
 "use client"
 
 import * as React from "react"
@@ -25,12 +25,12 @@ import {
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Transaction, Merchant, Category, BankAccount } from "@prisma/client"
+import type { Transaction, Merchant, Category, Account } from "@prisma/client"
 
 type Txn = Transaction & {
   merchant: Merchant | null
   category: Category | null
-  account: Pick<BankAccount, "id" | "name"> // <-- UPDATED: Reference BankAccount
+  account: Pick<Account, "id" | "name">
 }
 
 type ApiResponse = {
@@ -79,6 +79,7 @@ export default function TransactionsTable() {
       if (!res.ok) throw new Error("Failed to fetch transactions")
       return (await res.json()) as ApiResponse
     },
+    keepPreviousData: true,
   })
 
   const columns = React.useMemo<ColumnDef<Txn>[]>(() => {
@@ -161,7 +162,7 @@ export default function TransactionsTable() {
           />
           <Select
             value={categoryId}
-            onValueChange={(v: string) => {
+            onValueChange={(v) => {
               setCategoryId(v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
@@ -175,7 +176,7 @@ export default function TransactionsTable() {
           </Select>
           <Select
             value={merchantId}
-            onValueChange={(v: string) => {
+            onValueChange={(v) => {
               setMerchantId(v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
@@ -234,9 +235,7 @@ export default function TransactionsTable() {
                 table.getRowModel().rows.map((r) => (
                   <TableRow key={r.id}>
                     {r.getVisibleCells().map((c) => (
-                      <TableCell key={c.id}>
-                        { (c as any).renderCell ? (c as any).renderCell() : (c.getValue() as React.ReactNode) }
-                      </TableCell>
+                      <TableCell key={c.id}>{c.renderCell()}</TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -253,7 +252,7 @@ export default function TransactionsTable() {
           <div className="flex items-center gap-2">
             <Select
               value={String(pageSize)}
-              onValueChange={(v: string) => setPagination({ pageIndex: 0, pageSize: Number(v) })}
+              onValueChange={(v) => setPagination({ pageIndex: 0, pageSize: Number(v) })}
             >
               <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
               <SelectContent>

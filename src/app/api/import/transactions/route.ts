@@ -63,9 +63,9 @@ function normalizeRow(headers: string[], row: string[], m: Mapping) {
 }
 
 async function getOrCreateAccount(userId: string, name: string) {
-  const found = await prisma.bankAccount.findFirst({ where: { userId, name } }) // <-- UPDATED
+  const found = await prisma.account.findFirst({ where: { userId, name } })
   if (found) return found
-  return prisma.bankAccount.create({ data: { userId, name, type: "OTHER" } }) // <-- UPDATED
+  return prisma.account.create({ data: { userId, name, type: "OTHER" } })
 }
 
 async function getOrCreateMerchant(name: string) {
@@ -91,23 +91,8 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  let user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) {
-    // In development, auto-create the user if it does not exist so imports work seamlessly.
-    // This avoids a hard error when using local auth providers or seeded sessions.
-    try {
-      user = await prisma.user.create({
-        data: {
-          email: session.user.email,
-          name: (session.user as any).name ?? session.user.email,
-        },
-      })
-      console.log(`Auto-created user for import: ${user.email}`)
-    } catch (err) {
-      console.error('Failed to auto-create user during import:', err)
-      return NextResponse.json({ error: "User not found" }, { status: 401 })
-    }
-  }
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 401 })
 
   const form = await req.formData()
   const file = form.get("file")

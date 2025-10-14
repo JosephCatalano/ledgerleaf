@@ -14,7 +14,7 @@ export async function GET() {
 
     const userId = (session.user as { id: string }).id
 
-    const accounts = await prisma.bankAccount.findMany({ // <-- UPDATED
+    const accounts = await prisma.account.findMany({
       where: { userId },
       orderBy: { name: "asc" },
     })
