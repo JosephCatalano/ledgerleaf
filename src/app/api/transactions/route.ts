@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       include: {
         merchant: true,
         category: true,
-        account: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true, last4: true } }, // <-- UPDATED
       },
       orderBy: [buildOrderBy(sortBy, sortDir)],
       skip: (page - 1) * pageSize,

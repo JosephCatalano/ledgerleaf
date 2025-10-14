@@ -25,12 +25,12 @@ import {
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Transaction, Merchant, Category, Account } from "@prisma/client"
+import type { Transaction, Merchant, Category, BankAccount } from "@prisma/client"
 
 type Txn = Transaction & {
   merchant: Merchant | null
   category: Category | null
-  account: Pick<Account, "id" | "name">
+  account: Pick<BankAccount, "id" | "name"> // <-- UPDATED: Reference BankAccount
 }
 
 type ApiResponse = {

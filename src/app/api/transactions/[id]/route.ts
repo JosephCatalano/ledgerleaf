@@ -55,7 +55,7 @@ export async function PUT(
 
     // If accountId is being changed, verify it belongs to user
     if (data.accountId) {
-      const account = await prisma.bankAccount.findFirst({
+      const account = await prisma.bankAccount.findFirst({ // <-- UPDATED
         where: { id: data.accountId, userId },
       })
 
