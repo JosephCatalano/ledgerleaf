@@ -34,7 +34,7 @@ export async function PUT(
     const validation = UpdateTransactionSchema.safeParse(body)
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: validation.error.errors },
+        { error: "Invalid input", details: validation.error.issues },
         { status: 400 }
       )
     }

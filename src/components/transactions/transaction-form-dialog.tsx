@@ -71,19 +71,22 @@ export function TransactionFormDialog({
   const queryClient = useQueryClient()
   const isEditing = !!transaction
 
-  const { data: accountsData } = useQuery({
+  const { data: accountsData, isLoading: accountsLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: fetchAccounts,
+    initialData: { accounts: [] }
   })
 
-  const { data: categoriesData } = useQuery({
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: fetchCategories,
+    initialData: { categories: [] }
   })
 
-  const { data: merchantsData } = useQuery({
+  const { data: merchantsData, isLoading: merchantsLoading } = useQuery({
     queryKey: ["merchants"],
     queryFn: fetchMerchants,
+    initialData: { merchants: [] }
   })
 
   const {

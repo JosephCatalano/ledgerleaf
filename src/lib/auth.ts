@@ -46,12 +46,10 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-    // token is JWT; we expect custom id
-    if (token && typeof token === "object" && "id" in token && typeof token.id === "string") {
-      // @ts-expect-error augment session type if you didn't declare it yet
-      session.user.id = token.id
-    }
-    return session
-  },
+      if (token && session.user) {
+        session.user.id = token.sub as string; // Add the user id from the token to the session
+      }
+      return session;
+    },
   },
 }

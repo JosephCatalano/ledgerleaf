@@ -1,4 +1,4 @@
-// src/app/dashboard/TransactionsTable.tsx
+// src/app/dashboard/transactions-table.tsx
 "use client"
 
 import * as React from "react"
@@ -79,7 +79,6 @@ export default function TransactionsTable() {
       if (!res.ok) throw new Error("Failed to fetch transactions")
       return (await res.json()) as ApiResponse
     },
-    keepPreviousData: true,
   })
 
   const columns = React.useMemo<ColumnDef<Txn>[]>(() => {
@@ -162,7 +161,7 @@ export default function TransactionsTable() {
           />
           <Select
             value={categoryId}
-            onValueChange={(v) => {
+            onValueChange={(v: string) => {
               setCategoryId(v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
@@ -176,7 +175,7 @@ export default function TransactionsTable() {
           </Select>
           <Select
             value={merchantId}
-            onValueChange={(v) => {
+            onValueChange={(v: string) => {
               setMerchantId(v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
@@ -235,7 +234,9 @@ export default function TransactionsTable() {
                 table.getRowModel().rows.map((r) => (
                   <TableRow key={r.id}>
                     {r.getVisibleCells().map((c) => (
-                      <TableCell key={c.id}>{c.renderCell()}</TableCell>
+                      <TableCell key={c.id}>
+                        { (c as any).renderCell ? (c as any).renderCell() : (c.getValue() as React.ReactNode) }
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -252,7 +253,7 @@ export default function TransactionsTable() {
           <div className="flex items-center gap-2">
             <Select
               value={String(pageSize)}
-              onValueChange={(v) => setPagination({ pageIndex: 0, pageSize: Number(v) })}
+              onValueChange={(v: string) => setPagination({ pageIndex: 0, pageSize: Number(v) })}
             >
               <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
               <SelectContent>
