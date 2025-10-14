@@ -1,18 +1,40 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DeleteTransactionDialog } from '../delete-transaction-dialog'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// Mock fetch globally
-global.fetch = vi.fn()
-
 describe('DeleteTransactionDialog', () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false }
+      }
+    })
+
+    // Mock fetch for API calls
+    vi.spyOn(global, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url)
+      const isDeleteEndpoint = url.pathname.includes('/api/transactions') && (input as Request).method === 'DELETE'
+      
+      if (isDeleteEndpoint) {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
   })
 
   const renderDialog = (props: {
@@ -45,14 +67,6 @@ describe('DeleteTransactionDialog', () => {
   it('handles successful deletion', async () => {
     const onClose = vi.fn()
 
-    // Mock successful DELETE request
-    vi.mocked(fetch).mockImplementationOnce(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      } as Response)
-    )
-
     renderDialog({
       open: true,
       onClose,
@@ -60,13 +74,13 @@ describe('DeleteTransactionDialog', () => {
     })
 
     // Click delete button
-    const deleteButton = screen.getByText('Delete')
+    const deleteButton = screen.getByRole('button', { name: /delete/i })
     fireEvent.click(deleteButton)
 
     // Verify API call and dialog close
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(
-        '/api/transactions/test-id',
+        expect.stringContaining('/api/transactions/test-id'),
         expect.objectContaining({
           method: 'DELETE',
         })
@@ -77,15 +91,14 @@ describe('DeleteTransactionDialog', () => {
 
   it('handles deletion error', async () => {
     const onClose = vi.fn()
-
-    // Mock failed DELETE request
-    vi.mocked(fetch).mockImplementationOnce(() =>
-      Promise.resolve({
-        ok: false,
+    
+    // Override the default success mock with an error response
+    vi.spyOn(global, 'fetch').mockImplementationOnce(async () => {
+      return new Response(JSON.stringify({ error: 'Failed to delete transaction' }), {
         status: 400,
-        json: () => Promise.resolve({ error: 'Failed to delete' }),
-      } as Response)
-    )
+        headers: { 'Content-Type': 'application/json' }
+      })
+    })
 
     renderDialog({
       open: true,
@@ -94,7 +107,7 @@ describe('DeleteTransactionDialog', () => {
     })
 
     // Click delete button
-    const deleteButton = screen.getByText('Delete')
+    const deleteButton = screen.getByRole('button', { name: /delete/i })
     fireEvent.click(deleteButton)
 
     // Verify error handling
@@ -114,24 +127,24 @@ describe('DeleteTransactionDialog', () => {
     })
 
     // Click cancel button
-    const cancelButton = screen.getByText('Cancel')
+    const cancelButton = screen.getByRole('button', { name: /cancel/i })
     fireEvent.click(cancelButton)
 
     expect(onClose).toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('disables buttons during deletion', async () => {
     // Mock slow DELETE request
-    vi.mocked(fetch).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              ok: true,
-              json: () => Promise.resolve({ success: true }),
-            } as Response)
-          }, 100)
-        })
+    vi.spyOn(global, 'fetch').mockImplementationOnce(
+      () => new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }))
+        }, 100)
+      })
     )
 
     renderDialog({
@@ -140,14 +153,17 @@ describe('DeleteTransactionDialog', () => {
       transactionId: 'test-id',
     })
 
-    // Click delete button
-    const deleteButton = screen.getByText('Delete')
+    // Click delete button and verify loading state
+    const deleteButton = screen.getByRole('button', { name: /delete/i })
     fireEvent.click(deleteButton)
 
-    // Verify buttons are disabled
+    // Verify buttons are disabled during loading
+    expect(deleteButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled()
+
+    // Wait for deletion to complete
     await waitFor(() => {
-      expect(deleteButton).toBeDisabled()
-      expect(screen.getByText('Cancel')).toBeDisabled()
+      expect(deleteButton).not.toBeDisabled()
     })
   })
 })

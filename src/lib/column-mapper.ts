@@ -15,11 +15,11 @@ export const MappingSchema = z.object({
 export type Mapping = z.infer<typeof MappingSchema>
 
 const H = {
-  date: ["date", "transaction date", "posted", "posting date", "value date"],
-  amount: ["amount", "amt", "transaction amount", "debit", "credit"],
+  date: ["date", "date posted", "transaction date", "posted", "posting date", "value date"],
+  amount: ["amount", "transaction amount", "amt", "debit", "credit"],
   type: ["type", "transaction type", "dr/cr", "direction"],
   description: ["description", "details", "narrative", "memo", "reference"],
-  merchant: ["merchant", "payee", "name", "counterparty"],
+  merchant: ["merchant", "payee", "name", "counterparty", "description"], // BMO uses description for merchant
 }
 
 export function guessMapping(headers: string[]): Omit<Mapping, "bankKey"> {
@@ -43,6 +43,11 @@ export function deriveBankKey(filename: string): string {
   if (!filename) return "unknown"
   const base = filename.replace(/\.[^.]+$/, "")
   return base.replace(/[^a-z0-9]+/gi, "-").toLowerCase()
+}
+
+function cleanBMODescription(desc: string): string {
+  // Remove BMO's prefix codes like [DN], [PR], [CM]
+  return desc.replace(/^\[[A-Z]{2}\]/, '').trim()
 }
 
 export function normalizeRow(

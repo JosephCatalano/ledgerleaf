@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
+import { raw } from "@prisma/client/runtime/library"
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, "Account is required"),
@@ -101,7 +102,11 @@ export function TransactionFormDialog({
           accountId: transaction.accountId,
           merchantId: transaction.merchantId ?? undefined,
           categoryId: transaction.categoryId ?? undefined,
-          date: new Date(transaction.date).toISOString().split("T")[0],
+          // 🛑 FIX: Check if transaction.date exists (is not null/undefined/empty string) 
+          // before trying to process it. Fallback to an empty string if it's invalid.
+          date: transaction.date
+            ? new Date(transaction.date).toISOString().split("T")[0]
+            : "", // Or use new Date().toISOString().split("T")[0] for a current date fallback
           amount: transaction.amount,
           type: transaction.type,
           description: transaction.description,
@@ -177,7 +182,7 @@ export function TransactionFormDialog({
               <option value="TRANSFER">Transfer</option>
             </select>
             {errors.type && (
-              <p className="text-sm text-red-600">{errors.type.message}</p>
+              <p data-testid="form-error" className="text-sm text-red-600">{errors.type.message}</p>
             )}
           </div>
 
@@ -185,7 +190,7 @@ export function TransactionFormDialog({
             <Label htmlFor="date">Date</Label>
             <Input id="date" type="date" {...register("date")} />
             {errors.date && (
-              <p className="text-sm text-red-600">{errors.date.message}</p>
+              <p data-testid="form-error" className="text-sm text-red-600">{errors.date.message}</p>
             )}
           </div>
 
@@ -197,7 +202,7 @@ export function TransactionFormDialog({
               {...register("description")}
             />
             {errors.description && (
-              <p className="text-sm text-red-600">
+              <p data-testid="form-error" className="text-sm text-red-600">
                 {errors.description.message}
               </p>
             )}
@@ -213,7 +218,7 @@ export function TransactionFormDialog({
               {...register("amount")}
             />
             {errors.amount && (
-              <p className="text-sm text-red-600">{errors.amount.message}</p>
+              <p data-testid="form-error" className="text-sm text-red-600">{errors.amount.message}</p>
             )}
           </div>
 
@@ -232,7 +237,7 @@ export function TransactionFormDialog({
               ))}
             </select>
             {errors.accountId && (
-              <p className="text-sm text-red-600">{errors.accountId.message}</p>
+              <p data-testid="form-error" className="text-sm text-red-600">{errors.accountId.message}</p>
             )}
           </div>
 

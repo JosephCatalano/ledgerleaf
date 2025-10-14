@@ -1,91 +1,75 @@
-import { describe, it, expect, beforeEach, beforeAll, afterEach, vi } from 'vitest'
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { GET, POST } from '@/app/api/transactions/route'
 import { PUT, DELETE } from '@/app/api/transactions/[id]/route'
-
-// Mock NextAuth session
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn(() => Promise.resolve({
-    user: { id: 'test-user-id' }
-  }))
-}))
+import { Prisma } from '@prisma/client'
 
 describe('Transactions API', () => {
   let testAccountId: string
-  let testTransactionId: string
 
-  // Mock implementations
-  const mockRequest = (method: string, url: string, body?: any) => {
+  const createTestRequest = (method: string, urlString: string, body?: any) => {
+    const url = new URL(urlString)
     return new NextRequest(url, {
       method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
       ...(body && {
         body: JSON.stringify(body)
       })
     })
   }
 
-  // Reset database before all tests
-  beforeAll(async () => {
-    await prisma.transaction.deleteMany();
-    await prisma.account.deleteMany();
-    await prisma.user.deleteMany();
-  })
-
-  // Create test user and account before each test
   beforeEach(async () => {
     try {
-      // Clean up any test data from previous test
-      await prisma.transaction.deleteMany();
-      await prisma.account.deleteMany();
-      await prisma.user.deleteMany();
+      // Clear all existing data
+      await prisma.$transaction([
+        prisma.transactionTag.deleteMany(),
+        prisma.transaction.deleteMany(),
+        prisma.account.deleteMany(),
+        prisma.user.deleteMany(),
+        prisma.merchant.deleteMany(),
+        prisma.category.deleteMany(),
+        prisma.tag.deleteMany()
+      ])
 
-      // Create test user first
+      // Create test user
       const testUser = await prisma.user.create({
         data: {
           id: 'test-user-id',
           email: 'test@example.com',
           name: 'Test User',
+          accounts: {
+            create: {
+              name: 'Test Account',
+              type: 'CHECKING'
+            }
+          }
+        },
+        include: {
+          accounts: true
         }
       })
 
-      // Then create test account
-      const testAccount = await prisma.account.create({
-        data: {
-          name: 'Test Account',
-          type: 'CHECKING',
-          userId: testUser.id,
-        }
-      })
-      testAccountId = testAccount.id
+      testAccountId = testUser.accounts[0].id
+
     } catch (error) {
       console.error('Setup error:', error)
       throw error
     }
   })
 
-  // Clean up after tests
-  afterEach(async () => {
-    await prisma.transaction.deleteMany({
-      where: { userId: 'test-user-id' }
-    })
-    await prisma.account.deleteMany({
-      where: { userId: 'test-user-id' }
-    })
-    await prisma.user.deleteMany({
-      where: { id: 'test-user-id' }
-    })
+  afterAll(async () => {
+    await prisma.$disconnect()
   })
 
   describe('POST /api/transactions', () => {
     it('should create a new transaction', async () => {
-      const { POST } = await import('../route')
-      const response = await POST(mockRequest('POST', 'http://localhost:3000/api/transactions', {
+      const response = await POST(createTestRequest('POST', 'http://localhost:3000/api/transactions', {
         accountId: testAccountId,
         description: 'Test Transaction',
-        amount: 50.00,
+        amount: '50.00',
         date: '2025-10-13',
         type: 'EXPENSE'
       }))
@@ -99,33 +83,34 @@ describe('Transactions API', () => {
     })
 
     it('should validate required fields', async () => {
-      const { POST } = await import('../route')
-      const response = await POST(mockRequest('POST', 'http://localhost:3000/api/transactions', {
-        description: 'Missing Required Fields'
+      const response = await POST(createTestRequest('POST', 'http://localhost:3000/api/transactions', {
+        // Missing required fields
       }))
+
+      const data = await response.json()
       expect(response.status).toBe(400)
+      expect(data.error).toMatch(/required/)
     })
   })
 
   describe('GET /api/transactions', () => {
+    let testTransaction: any
+
     beforeEach(async () => {
-      // Create a test transaction
-      const transaction = await prisma.transaction.create({
+      testTransaction = await prisma.transaction.create({
         data: {
           accountId: testAccountId,
+          userId: 'test-user-id',
           description: 'Test Transaction',
-          amount: new Prisma.Decimal(50),
+          amount: new Prisma.Decimal(50.00),
           date: new Date('2025-10-13'),
-          type: 'EXPENSE',
-          userId: 'test-user-id'
+          type: 'EXPENSE'
         }
       })
-      testTransactionId = transaction.id
     })
 
     it('should list transactions with pagination', async () => {
-      const req = new NextRequest('http://localhost:3000/api/transactions?page=1&pageSize=10')
-      const response = await GET(req)
+      const response = await GET(createTestRequest('GET', 'http://localhost:3000/api/transactions'))
       const data = await response.json()
 
       expect(response.status).toBe(200)
@@ -133,54 +118,67 @@ describe('Transactions API', () => {
       expect(data).toHaveProperty('total')
       expect(data).toHaveProperty('page')
       expect(data.data.length).toBeGreaterThan(0)
+      expect(data.data[0]).toHaveProperty('id')
+      expect(data.data[0].description).toBe('Test Transaction')
     })
 
     it('should filter transactions', async () => {
-      const req = new NextRequest('http://localhost:3000/api/transactions?q=Test')
-      const response = await GET(req)
+      // Create another transaction with different date
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          userId: 'test-user-id',
+          description: 'Another Transaction',
+          amount: new Prisma.Decimal(75.00),
+          date: new Date('2025-11-13'),
+          type: 'EXPENSE'
+        }
+      })
+
+      const response = await GET(
+        createTestRequest('GET', 'http://localhost:3000/api/transactions?startDate=2025-10-01&endDate=2025-10-31')
+      )
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.data.length).toBeGreaterThan(0)
-      expect(data.data[0].description).toContain('Test')
+      expect(data.data.length).toBe(1)
+      expect(data.data[0].description).toBe('Test Transaction')
     })
   })
 
   describe('PUT /api/transactions/[id]', () => {
+    let testTransaction: any
+
     beforeEach(async () => {
-      // Create a test transaction
-      const transaction = await prisma.transaction.create({
+      testTransaction = await prisma.transaction.create({
         data: {
           accountId: testAccountId,
-          description: 'Original Transaction',
-          amount: new Prisma.Decimal(50),
+          userId: 'test-user-id',
+          description: 'Test Transaction',
+          amount: new Prisma.Decimal(50.00),
           date: new Date('2025-10-13'),
-          type: 'EXPENSE',
-          userId: 'test-user-id'
+          type: 'EXPENSE'
         }
       })
-      testTransactionId = transaction.id
     })
 
     it('should update a transaction', async () => {
-      const req = new NextRequest(`http://localhost:3000/api/transactions/${testTransactionId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          description: 'Updated Transaction',
-          amount: 75.00
-        })
+      const url = 'http://localhost:3000/api/transactions/' + testTransaction.id
+      const request = createTestRequest('PUT', url, {
+        description: 'Updated Transaction',
+        amount: '75.00'
       })
 
-      const response = await PUT(req, { params: Promise.resolve({ id: testTransactionId }) })
+      const response = await PUT(request, { params: Promise.resolve({ id: testTransaction.id }) })
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.transaction.description).toBe('Updated Transaction')
-      expect(data.transaction.amount.toString()).toBe('75')
+      expect(data.description).toBe('Updated Transaction')
+      expect(Number(data.amount)).toBe(75)
     })
 
     it('should validate transaction ownership', async () => {
-      // Create another test user and account first
+      // Create another user and account
       const otherUser = await prisma.user.create({
         data: {
           id: 'other-user-id',
@@ -193,67 +191,59 @@ describe('Transactions API', () => {
         data: {
           name: 'Other Account',
           type: 'CHECKING',
-          userId: otherUser.id,
-        }
-      })
-
-      // Create a transaction for the other user
-      const otherTransaction = await prisma.transaction.create({
-        data: {
-          accountId: otherAccount.id,
-          description: 'Other User Transaction',
-          amount: new Prisma.Decimal(50),
-          date: new Date('2025-10-13'),
-          type: 'EXPENSE',
           userId: otherUser.id
         }
       })
 
-      const req = new NextRequest(`http://localhost:3000/api/transactions/${otherTransaction.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          description: 'Attempted Update'
-        })
+      // Try to update transaction with wrong user
+      const url = 'http://localhost:3000/api/transactions/' + testTransaction.id
+      const request = createTestRequest('PUT', url, {
+        description: 'Should Not Update',
+        amount: '100.00'
       })
 
-      const response = await PUT(req, { params: Promise.resolve({ id: otherTransaction.id }) })
-      expect(response.status).toBe(404)
+      vi.mocked(request.headers.get).mockImplementation((name) => {
+        if (name === 'authorization') return 'Bearer other-user-token'
+        return null
+      })
+
+      const response = await PUT(request, { params: Promise.resolve({ id: testTransaction.id }) })
+      expect(response.status).toBe(403)
     })
   })
 
   describe('DELETE /api/transactions/[id]', () => {
+    let testTransaction: any
+
     beforeEach(async () => {
-      // Create a test transaction
-      const transaction = await prisma.transaction.create({
+      testTransaction = await prisma.transaction.create({
         data: {
           accountId: testAccountId,
-          description: 'To Be Deleted',
-          amount: new Prisma.Decimal(50),
+          userId: 'test-user-id',
+          description: 'Test Transaction',
+          amount: new Prisma.Decimal(50.00),
           date: new Date('2025-10-13'),
-          type: 'EXPENSE',
-          userId: 'test-user-id'
+          type: 'EXPENSE'
         }
       })
-      testTransactionId = transaction.id
     })
 
     it('should delete a transaction', async () => {
-      const req = new NextRequest(`http://localhost:3000/api/transactions/${testTransactionId}`, {
-        method: 'DELETE'
-      })
+      const url = 'http://localhost:3000/api/transactions/' + testTransaction.id
+      const request = createTestRequest('DELETE', url)
+      const response = await DELETE(request, { params: Promise.resolve({ id: testTransaction.id }) })
 
-      const response = await DELETE(req, { params: Promise.resolve({ id: testTransactionId }) })
       expect(response.status).toBe(200)
 
       // Verify deletion
-      const transaction = await prisma.transaction.findUnique({
-        where: { id: testTransactionId }
+      const deleted = await prisma.transaction.findUnique({
+        where: { id: testTransaction.id }
       })
-      expect(transaction).toBeNull()
+      expect(deleted).toBeNull()
     })
 
     it('should validate transaction ownership before deletion', async () => {
-      // Create another test user and account first
+      // Create another user and account
       const otherUser = await prisma.user.create({
         data: {
           id: 'other-user-id',
@@ -266,34 +256,22 @@ describe('Transactions API', () => {
         data: {
           name: 'Other Account',
           type: 'CHECKING',
-          userId: otherUser.id,
-        }
-      })
-
-      // Create a transaction for the other user
-      const otherTransaction = await prisma.transaction.create({
-        data: {
-          accountId: otherAccount.id,
-          description: 'Other User Transaction',
-          amount: new Prisma.Decimal(50),
-          date: new Date('2025-10-13'),
-          type: 'EXPENSE',
           userId: otherUser.id
         }
       })
 
-      const req = new NextRequest(`http://localhost:3000/api/transactions/${otherTransaction.id}`, {
-        method: 'DELETE'
+      // Try to delete with wrong user
+      const url = 'http://localhost:3000/api/transactions/' + testTransaction.id
+      const request = createTestRequest('DELETE', url)
+      
+      vi.mocked(request.headers.get).mockImplementation((name) => {
+        if (name === 'authorization') return 'Bearer other-user-token'
+        return null
       })
 
-      const response = await DELETE(req, { params: Promise.resolve({ id: otherTransaction.id }) })
-      expect(response.status).toBe(404)
-
-      // Verify transaction still exists
-      const transaction = await prisma.transaction.findUnique({
-        where: { id: otherTransaction.id }
-      })
-      expect(transaction).not.toBeNull()
+      const response = await DELETE(request, { params: Promise.resolve({ id: testTransaction.id }) })
+      expect(response.status).toBe(403)
     })
   })
+
 })

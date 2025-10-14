@@ -85,13 +85,8 @@ describe('TransactionsTable', () => {
     vi.resetAllMocks()
 
     // Mock fetch responses
-    vi.spyOn(global, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url)
-      
-      if (!url.pathname.includes('/api/transactions')) {
-        return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 })
-      }
-
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(input.toString())
       const searchParams = url.searchParams
       
       // Get pagination params

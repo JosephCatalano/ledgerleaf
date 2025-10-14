@@ -17,6 +17,9 @@ describe('Transactions API', () => {
   const mockRequest = (method: string, url: string, body?: any) => {
     return new NextRequest(url, {
       method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       ...(body && {
         body: JSON.stringify(body)
       })
@@ -25,8 +28,15 @@ describe('Transactions API', () => {
 
   // Create a test user and account before running tests
   beforeEach(async () => {
+    // First clean up any existing data
+    await prisma.$transaction([
+      prisma.transaction.deleteMany(),
+      prisma.account.deleteMany(),
+      prisma.user.deleteMany()
+    ])
+
     // Create test user first
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         id: 'test-user-id',
         email: 'test@example.com',
@@ -38,8 +48,8 @@ describe('Transactions API', () => {
     const testAccount = await prisma.account.create({
       data: {
         name: 'Test Account',
-        type: 'CHECKING',
-        userId: 'test-user-id'
+        userId: user.id,
+        type: 'CHECKING'
       }
     })
     testAccountId = testAccount.id
@@ -47,15 +57,11 @@ describe('Transactions API', () => {
 
   // Clean up after tests
   afterEach(async () => {
-    await prisma.transaction.deleteMany({
-      where: { userId: 'test-user-id' }
-    })
-    await prisma.account.deleteMany({
-      where: { userId: 'test-user-id' }
-    })
-    await prisma.user.deleteMany({
-      where: { id: 'test-user-id' }
-    })
+    await prisma.$transaction([
+      prisma.transaction.deleteMany(),
+      prisma.account.deleteMany(),
+      prisma.user.deleteMany()
+    ])
   })
 
   describe('POST /api/transactions', () => {
@@ -161,14 +167,33 @@ describe('Transactions API', () => {
     })
 
     it('should validate transaction ownership', async () => {
+      // Create another user
+      const otherUser = await prisma.user.create({
+        data: {
+          id: 'other-user-id',
+          email: 'other@example.com',
+          name: 'Other User'
+        }
+      })
+      
+      // Create an account for the other user
+      const otherAccount = await prisma.account.create({
+        data: {
+          name: 'Other Account',
+          type: 'CHECKING',
+          userId: otherUser.id
+        }
+      })
+      
+      // Create a transaction for the other user
       const otherTransaction = await prisma.transaction.create({
         data: {
-          accountId: testAccountId,
+          accountId: otherAccount.id,
           description: 'Other User Transaction',
           amount: 50,
           date: new Date('2025-10-13'),
           type: 'EXPENSE',
-          userId: 'other-user-id'
+          userId: otherUser.id
         }
       })
 
@@ -217,14 +242,33 @@ describe('Transactions API', () => {
     })
 
     it('should validate transaction ownership before deletion', async () => {
+      // Create another user
+      const otherUser = await prisma.user.create({
+        data: {
+          id: 'other-user-id',
+          email: 'other@example.com',
+          name: 'Other User'
+        }
+      })
+      
+      // Create an account for the other user
+      const otherAccount = await prisma.account.create({
+        data: {
+          name: 'Other Account',
+          type: 'CHECKING',
+          userId: otherUser.id
+        }
+      })
+      
+      // Create a transaction for the other user
       const otherTransaction = await prisma.transaction.create({
         data: {
-          accountId: testAccountId,
+          accountId: otherAccount.id,
           description: 'Other User Transaction',
           amount: 50,
           date: new Date('2025-10-13'),
           type: 'EXPENSE',
-          userId: 'other-user-id'
+          userId: otherUser.id
         }
       })
 
