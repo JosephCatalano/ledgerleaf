@@ -1,9 +1,14 @@
-﻿import type { NextAuthOptions } from "next-auth"
+﻿// src/lib/auth.ts
+import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import { prisma } from "@/lib/db"
+// 1. Import Prisma Adapter
+import { PrismaAdapter } from "@auth/prisma-adapter"
 
 export const authOptions: NextAuthOptions = {
+  // 2. Add the Adapter (must be first!)
+  adapter: PrismaAdapter(prisma), 
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" },
   providers: [
@@ -18,7 +23,8 @@ export const authOptions: NextAuthOptions = {
           const user = await prisma.user.upsert({
             where: { email: "demo@ledgerleaf.app" },
             update: { name: "Demo User" },
-            create: { email: "demo@ledgerleaf.app", name: "Demo User" },
+            // Ensure demo account fields match the model (User has name, email, id)
+            create: { email: "demo@ledgerleaf.app", name: "Demo User", id: "user_demo" }, 
           })
           return { id: user.id, name: user.name ?? "Demo User", email: user.email }
         }
@@ -36,7 +42,10 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      // If a user signs in (either credentials or OAuth)
       if (user) {
+        // Overwrite token.id with the user's database ID
+        token.id = user.id
         token.user = { 
           id: user.id, 
           name: user.name ?? null, 
@@ -46,10 +55,11 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.sub as string; // Add the user id from the token to the session
+      // Set the session user's ID from the token ID
+      if (token && typeof token.id === "string") {
+        session.user.id = token.id
       }
-      return session;
-    },
+      return session
+  },
   },
 }
