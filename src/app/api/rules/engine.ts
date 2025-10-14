@@ -66,7 +66,7 @@ export async function fetchUserRules(userId: string) {
       id: r.id,
       userId: r.userId,
       priority: r.priority,
-      field: r.field as any,
+      field: r.field as "merchant" | "description" | "amount",
       pattern: r.pattern,
       categoryId: r.categoryId ?? null,
     })

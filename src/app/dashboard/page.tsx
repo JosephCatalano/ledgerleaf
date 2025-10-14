@@ -10,7 +10,7 @@ export default async function DashboardPage() {
     <main className="p-6">
       <h1 className="text-2xl font-semibold">Dashboard</h1>
       <p className="text-muted-foreground mt-2">
-        Welcome, {session.user.name ?? (session.user as any).email}
+        Welcome, {session.user.name ?? session.user.email}
       </p>
     </main>
   )

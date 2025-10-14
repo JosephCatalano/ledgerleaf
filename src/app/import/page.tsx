@@ -11,7 +11,7 @@ type UploadResult = {
   headers: string[]
   sample: string[][]
   rowCount: number
-  error?: any
+  error?: string
 }
 
 export default function ImportPage() {
@@ -19,7 +19,14 @@ export default function ImportPage() {
   const [res, setRes] = useState<UploadResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [accountName, setAccountName] = useState("Imported")
-  const [importResult, setImportResult] = useState<any>(null)
+  const [importResult, setImportResult] = useState<{
+    ok?: boolean
+    inserted?: number
+    processed?: number
+    skippedDuplicate?: number
+    account?: string
+    error?: string
+  } | null>(null)
 
   const bankKey = useMemo(() => deriveBankKey(file?.name || "unknown.csv"), [file?.name])
   const [mapping, setMapping] = useState<Mapping | null>(null)
@@ -159,7 +166,7 @@ export default function ImportPage() {
                         <Label>{f}</Label>
                         <select
                           className="border rounded-md px-2 py-2 text-sm w-full"
-                          value={(mapping as any)[f] || ""}
+                          value={mapping[f as keyof Mapping] || ""}
                           onChange={(e) => updateField(f as keyof Mapping, e.target.value)}
                         >
                           {res.headers.map((h: string) => (

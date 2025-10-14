@@ -1,47 +1,51 @@
 // src/app/api/rules/test/route.ts
-import { NextResponse, type NextRequest } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { applyRulesToTransaction, type CandidateTxn } from "@/lib/rules/engine"
 import type { Rule } from "@prisma/client"
 
-// GET /api/rules/test?limit=20
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url)
-    const limitParam = searchParams.get("limit")
-    const limit = Math.max(1, Math.min(Number(limitParam ?? "20"), 200))
+export const dynamic = "force-dynamic" // avoids edge/runtime confusion in dev
 
-    // 1) Load rules ordered by priority (smallest first)
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url)
+    const limitParam = url.searchParams.get("limit") ?? "20"
+    const parsed = Number(limitParam)
+    const limit = Number.isFinite(parsed)
+      ? Math.max(1, Math.min(parsed, 200))
+      : 20
+
+    // 1) Rules by priority
     const rules: Rule[] = await prisma.rule.findMany({
       orderBy: { priority: "asc" },
     })
 
-    // 2) Pull a small batch of recent transactions, include lowercase "merchant"
+    // 2) Latest transactions with merchant
     const txns: CandidateTxn[] = await prisma.transaction.findMany({
       take: limit,
       orderBy: { date: "desc" },
-      include: { merchant: true },
+      include: { merchant: true }, // NOTE: lowercase key
     })
 
-    // 3) Collect merchant names (typed as string[]) for a quick existence check
+    // 3) Merchant names as string[]
     const merchantNames: string[] = Array.from(
       new Set(
         txns
-          .map((t: CandidateTxn) => t.merchant?.name)
-          .filter((v: string | undefined | null): v is string => !!v)
+          .map((t) => t.merchant?.name)
+          .filter((v): v is string => typeof v === "string" && v.length > 0)
       )
     )
 
-    // Optional: verify merchants exist (example query that uses typed array)
-    if (merchantNames.length) {
+    if (merchantNames.length > 0) {
+      // sanity check query that keeps types happy
       await prisma.merchant.findMany({
         where: { name: { in: merchantNames } },
         select: { id: true },
       })
     }
 
-    // 4) Apply rules (fully typed – no implicit any)
-    const evaluated = txns.map((t: CandidateTxn) => {
+    // 4) Evaluate
+    const evaluated = txns.map((t) => {
       const match = applyRulesToTransaction(t, rules)
       return {
         id: t.id,

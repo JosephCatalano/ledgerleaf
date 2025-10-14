@@ -8,7 +8,21 @@ import { Label } from "@/components/ui/label"
 
 export default function RulesTestPage() {
   const [limit, setLimit] = useState("20")
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<{
+    count: number
+    rules: Array<{
+      id: string
+      priority: number
+      field: string
+      pattern: string
+      categoryId: string | null
+    }>
+    results: Array<{
+      txId: string
+      categoryId: string | null
+      matchedRuleId: string | null
+    }>
+  } | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function runTest() {
@@ -48,7 +62,7 @@ export default function RulesTestPage() {
               <div>
                 <div className="font-medium mb-1">Loaded Rules</div>
                 <ul className="list-disc ml-5">
-                  {(data.rules ?? []).map((r: any) => (
+                  {(data.rules ?? []).map((r) => (
                     <li key={r.id}>
                       <code>#{r.priority}</code> if <b>{r.field}</b> matches <code>{r.pattern}</code> → categoryId:
                       <code>{r.categoryId ?? "none"}</code>
@@ -69,7 +83,7 @@ export default function RulesTestPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(data.results ?? []).map((r: any) => (
+                      {(data.results ?? []).map((r) => (
                         <tr key={r.txId}>
                           <td className="border px-2 py-1">{r.txId}</td>
                           <td className="border px-2 py-1">{r.categoryId}</td>
