@@ -91,7 +91,7 @@ export function TransactionFormDialog({
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<TransactionFormData>({
+  } = useForm({
     resolver: zodResolver(transactionSchema),
     defaultValues: transaction
       ? {

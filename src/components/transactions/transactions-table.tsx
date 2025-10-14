@@ -95,7 +95,7 @@ export function TransactionsTable() {
     setPage(1)
   }
 
-  const columns: ColumnDef<Transaction, unknown>[] = [
+  const columns = [
     columnHelper.accessor("date", {
       header: ({ column }) => (
         <Button
