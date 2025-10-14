@@ -1,85 +1,70 @@
-/* src/app/api/rules/test/route.ts */
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+// src/app/api/rules/test/route.ts
+import { NextResponse, type NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
-import { applyRulesToBatch, ensureUncategorized, fetchUserRules, TxLite } from "@/lib/rules/engine"
+import { applyRulesToTransaction, type CandidateTxn } from "@/lib/rules/engine"
+import type { Rule } from "@prisma/client"
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+// GET /api/rules/test?limit=20
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const limitParam = searchParams.get("limit")
+    const limit = Math.max(1, Math.min(Number(limitParam ?? "20"), 200))
 
-type TxRow = {
-  id: string
-  description: string
-  amount: number
-  type: "INCOME" | "EXPENSE"
-  date: Date
-  accountId: string
-  merchantId: string | null
-}
-
-// POST { limit?: number } => run rules over last N transactions
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 401 })
-
-  const { limit = 20 } = (await req.json().catch(() => ({ limit: 20 as number }))) as { limit?: number }
-  const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 200)
-
-  const [rules, uncategorized, txs] = await Promise.all([
-    fetchUserRules(user.id),
-    ensureUncategorized(),
-    prisma.transaction.findMany({
-      where: { userId: user.id },
-      orderBy: { date: "desc" },
-      take: safeLimit,
-      select: {
-        id: true,
-        description: true,
-        amount: true,
-        type: true,
-        date: true,
-        accountId: true,
-        merchantId: true,
-      },
-      // NOTE: no `include: { Merchant: ... }` — relation name is `merchant` if you need it
-    }),
-  ])
-
-  // Gather merchant names in one query
-  const merchantIds = Array.from(
-    new Set(txs.map((t) => t.merchantId).filter((v): v is string => Boolean(v)))
-  )
-  const merchantMap = new Map<string, string>()
-  if (merchantIds.length) {
-    const merchants = await prisma.merchant.findMany({
-      where: { id: { in: merchantIds } },
-      select: { id: true, name: true },
+    // 1) Load rules ordered by priority (smallest first)
+    const rules: Rule[] = await prisma.rule.findMany({
+      orderBy: { priority: "asc" },
     })
-    merchants.forEach((m) => merchantMap.set(m.id, m.name))
+
+    // 2) Pull a small batch of recent transactions, include lowercase "merchant"
+    const txns: CandidateTxn[] = await prisma.transaction.findMany({
+      take: limit,
+      orderBy: { date: "desc" },
+      include: { merchant: true },
+    })
+
+    // 3) Collect merchant names (typed as string[]) for a quick existence check
+    const merchantNames: string[] = Array.from(
+      new Set(
+        txns
+          .map((t: CandidateTxn) => t.merchant?.name)
+          .filter((v: string | undefined | null): v is string => !!v)
+      )
+    )
+
+    // Optional: verify merchants exist (example query that uses typed array)
+    if (merchantNames.length) {
+      await prisma.merchant.findMany({
+        where: { name: { in: merchantNames } },
+        select: { id: true },
+      })
+    }
+
+    // 4) Apply rules (fully typed – no implicit any)
+    const evaluated = txns.map((t: CandidateTxn) => {
+      const match = applyRulesToTransaction(t, rules)
+      return {
+        id: t.id,
+        date: t.date,
+        description: t.description,
+        merchant: t.merchant?.name ?? null,
+        existingCategoryId: t.categoryId ?? null,
+        suggestedCategoryId: match?.categoryId ?? null,
+        ruleId: match?.ruleId ?? null,
+        reason: match?.reason ?? null,
+      }
+    })
+
+    return NextResponse.json({
+      count: evaluated.length,
+      rules: rules.length,
+      sample: evaluated,
+    })
+  } catch (err) {
+    console.error("/api/rules/test error", err)
+    return NextResponse.json(
+      { error: "Failed to evaluate rules" },
+      { status: 500 }
+    )
   }
-
-  const lite: TxLite[] = (txs as TxRow[]).map((t: TxRow) => ({
-    id: t.id,
-    merchant: t.merchantId ? merchantMap.get(t.merchantId) ?? "" : "",
-    description: t.description,
-    amount: t.amount,
-  }))
-
-  const results = applyRulesToBatch(rules, lite, uncategorized.id)
-
-  return NextResponse.json({
-    count: lite.length,
-    rules: rules.map((r) => ({
-      id: r.id,
-      priority: r.priority,
-      field: r.field,
-      pattern: r.pattern,
-      categoryId: r.categoryId,
-    })),
-    results,
-  })
 }
