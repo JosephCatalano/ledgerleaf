@@ -1,3 +1,4 @@
+// src/app/api/transactions/[id]/route.ts
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -34,7 +35,7 @@ export async function PUT(
     const validation = UpdateTransactionSchema.safeParse(body)
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: validation.error.errors },
+        { error: "Invalid input", details: validation.error.flatten().fieldErrors },
         { status: 400 }
       )
     }
