@@ -16,6 +16,8 @@
     "@prisma/client": "^6.17.1",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@tanstack/react-query": "^5.90.3",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
