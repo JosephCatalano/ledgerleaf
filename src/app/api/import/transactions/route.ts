@@ -63,9 +63,9 @@ function normalizeRow(headers: string[], row: string[], m: Mapping) {
 }
 
 async function getOrCreateAccount(userId: string, name: string) {
-  const found = await prisma.account.findFirst({ where: { userId, name } })
+  const found = await prisma.bankAccount.findFirst({ where: { userId, name } }) // <-- UPDATED
   if (found) return found
-  return prisma.account.create({ data: { userId, name, type: "OTHER" } })
+  return prisma.bankAccount.create({ data: { userId, name, type: "OTHER" } }) // <-- UPDATED
 }
 
 async function getOrCreateMerchant(name: string) {

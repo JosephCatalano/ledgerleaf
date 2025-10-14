@@ -55,7 +55,7 @@ export async function PUT(
 
     // If accountId is being changed, verify it belongs to user
     if (data.accountId) {
-      const account = await prisma.account.findFirst({
+      const account = await prisma.bankAccount.findFirst({
         where: { id: data.accountId, userId },
       })
 
@@ -81,7 +81,7 @@ export async function PUT(
       include: {
         category: true,
         merchant: true,
-        account: true,
+        account: { select: { id: true, name: true } },
       },
     })
 

@@ -21,39 +21,7 @@ enum AccountType {
   OTHER
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  accounts      Account[]      // <-- New OAuth Account model
-  sessions      Session[]      // <-- New Session model
-  
-  // Existing relations, renamed
-  bankAccounts  BankAccount[]  // <-- Renamed banking Account
-  transactions  Transaction[]
-  rules         Rule[]
-  budgets       Budget[]
-}
-
-model BankAccount {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  name        String
-  institution String?
-  type        AccountType
-  last4       String?
-  createdAt   DateTime @default(now())
-
-  transactions Transaction[]
-
-  @@index([userId])
-  @@map("Account") // Keep original table name in DB for smoother migration
-}
-
+// NextAuth Adapter Models Start Here
 model Account {
   id                String  @id @default(cuid())
   userId            String  @map("user_id")
@@ -90,6 +58,41 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+// NextAuth Adapter Models End Here
+
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions      Session[]
+  accounts      Account[]      // <-- Link to new OAuth Account table
+  
+  bankAccounts  BankAccount[]  // <-- Renamed: Financial accounts for tracking
+  transactions  Transaction[]
+  rules         Rule[]
+  budgets       Budget[]
+}
+
+// RENAMED MODEL (was Account)
+model BankAccount {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String
+  institution String?
+  type        AccountType
+  last4       String?
+  createdAt   DateTime @default(now())
+
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("Account") // Keep original table name in DB for simpler migration
 }
 
 model Merchant {
@@ -132,8 +135,8 @@ model Transaction {
   id          String    @id @default(cuid())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
-  account     BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade) // <-- Changed to BankAccount
-  accountId   String // This ID now points to the BankAccount table
+  account     BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade) // <-- UPDATED RELATION
+  accountId   String
   merchant    Merchant? @relation(fields: [merchantId], references: [id])
   merchantId  String?
   category    Category? @relation(fields: [categoryId], references: [id])
