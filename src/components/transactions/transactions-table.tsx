@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { TransactionFormDialog } from "./transaction-form-dialog"
+import { DeleteTransactionDialog } from "./delete-transaction-dialog"
 import {
   useReactTable,
   getCoreRowModel,
@@ -13,15 +15,25 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react"
+import {
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  Edit,
+  Trash2,
+} from "lucide-react"
 import { TransactionFilters } from "./transaction-filters"
 
 type Transaction = {
   id: string
+  accountId: string
+  merchantId?: string | null
+  categoryId?: string | null
   date: string
-  description: string
   amount: number
   type: "INCOME" | "EXPENSE" | "TRANSFER"
+  description: string
   category: { id: string; name: string } | null
   merchant: { id: string; name: string } | null
   account: { id: string; name: string }
@@ -76,6 +88,8 @@ export function TransactionsTable() {
     { id: "date", desc: true },
   ])
   const [filters, setFilters] = useState<FilterState>({})
+  const [editTransaction, setEditTransaction] = useState<Transaction | null>(null)
+  const [deleteTransaction, setDeleteTransaction] = useState<string | null>(null)
 
   const sortBy = sorting[0]?.id ?? "date"
   const sortOrder = sorting[0]?.desc ? "desc" : "asc"
@@ -95,7 +109,7 @@ export function TransactionsTable() {
     setPage(1)
   }
 
-  const columns: ColumnDef<Transaction, unknown>[] = [
+  const columns = [
     columnHelper.accessor("date", {
       header: ({ column }) => (
         <Button
@@ -215,6 +229,31 @@ export function TransactionsTable() {
         )
       },
     }),
+    columnHelper.accessor("id", {
+      header: "",
+      cell: (info) => (
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setEditTransaction(info.row.original)}
+            className="h-8 w-8"
+          >
+            <Edit className="h-4 w-4" />
+            <span className="sr-only">Edit</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDeleteTransaction(info.getValue())}
+            className="h-8 w-8 text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        </div>
+      ),
+    }),
   ]
 
   const table = useReactTable({
@@ -258,6 +297,19 @@ export function TransactionsTable() {
 
   return (
     <div className="space-y-4">
+      {/* Edit Dialog */}
+      <TransactionFormDialog
+        open={!!editTransaction}
+        onClose={() => setEditTransaction(null)}
+        transaction={editTransaction}
+      />
+
+      {/* Delete Dialog */}
+      <DeleteTransactionDialog
+        open={!!deleteTransaction}
+        onClose={() => setDeleteTransaction(null)}
+        transactionId={deleteTransaction}
+      />
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
@@ -277,16 +329,21 @@ export function TransactionsTable() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>
-              Transactions ({data?.pagination.totalCount ?? 0})
-            </CardTitle>
+            <div className="flex items-center gap-4">
+              <CardTitle>
+                Transactions ({data?.pagination?.totalCount ?? 0})
+              </CardTitle>
+              <Button onClick={() => setEditTransaction({} as Transaction)} className="ml-4">
+                Add Transaction
+              </Button>
+            </div>
             <div className="text-sm text-muted-foreground">
-              Page {data?.pagination.page} of {data?.pagination.totalPages}
+              Page {data?.pagination?.page ?? 1} of {data?.pagination?.totalPages ?? 1}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {!data?.transactions.length ? (
+          {(data?.transactions?.length ?? 0) === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               <p className="font-medium">No transactions found</p>
               <p className="text-sm mt-1">
@@ -296,7 +353,7 @@ export function TransactionsTable() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full" role="table">
                   <thead>
                     {table.getHeaderGroups().map((headerGroup) => (
                       <tr key={headerGroup.id} className="border-b">
@@ -337,8 +394,8 @@ export function TransactionsTable() {
               <div className="flex items-center justify-between mt-4 pt-4 border-t">
                 <div className="text-sm text-muted-foreground">
                   Showing {((page - 1) * pageSize) + 1} to{" "}
-                  {Math.min(page * pageSize, data.pagination.totalCount)} of{" "}
-                  {data.pagination.totalCount} transactions
+                  {Math.min(page * pageSize, data?.pagination?.totalCount ?? 0)} of{" "}
+                  {data?.pagination?.totalCount ?? 0} transactions
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -354,7 +411,7 @@ export function TransactionsTable() {
                     variant="outline"
                     size="sm"
                     onClick={() => setPage((p) => p + 1)}
-                    disabled={page >= (data.pagination.totalPages ?? 1)}
+                    disabled={page >= (data?.pagination?.totalPages ?? 1)}
                   >
                     Next
                     <ChevronRight className="h-4 w-4" />

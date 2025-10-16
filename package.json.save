@@ -1,9 +1,9 @@
-{
+XXXXX[A{
   "name": "ledgerleaf-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -14,9 +14,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.10.0",
-    "@prisma/client": "^6.17.1",
-    "@radix-ui/react-dialog": "^1.1.15",
+    "@prisma/client": "^5.17.0",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@tanstack/react-query": "^5.51.1",
@@ -29,9 +27,8 @@
     "next-auth": "^4.24.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-hook-form": "^7.65.0",
     "tailwind-merge": "^2.4.0",
-    "zod": "3"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.1.0",
@@ -43,7 +40,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.5",
     "jest": "^29.7.0",
-    "prisma": "^6.17.1",
+    "prisma": "^5.17.0",
     "tailwindcss": "^4.0.0-alpha.13",
     "ts-jest": "^29.2.2",
     "tsx": "^4.16.2",

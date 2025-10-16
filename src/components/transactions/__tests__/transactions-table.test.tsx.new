@@ -1,0 +1,251 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { TransactionsTable } from '../transactions-table'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// Mock next-auth
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({
+    data: {
+      user: { id: 'test-user-id', name: 'Test User', email: 'test@example.com' },
+    },
+    status: 'authenticated',
+  }),
+}))
+
+// Create mock data
+const mockAccounts = [
+  { id: 'test-account-1', name: 'Test Account', type: 'CHECKING' },
+  { id: 'test-account-2', name: 'Test Credit Card', type: 'CREDIT' }
+]
+
+const mockCategories = [
+  { id: 'test-category-1', name: 'Test Category', type: 'EXPENSE' },
+  { id: 'test-category-2', name: 'Test Income', type: 'INCOME' }
+]
+
+const mockMerchants = [
+  { id: 'test-merchant-1', name: 'Test Merchant' },
+  { id: 'test-merchant-2', name: 'Another Merchant' }
+]
+
+const mockTransactions = [
+  {
+    id: 'test-id-1',
+    accountId: mockAccounts[0].id,
+    description: 'Test Transaction',
+    amount: 50.00,
+    date: '2025-10-13',
+    type: 'EXPENSE' as const,
+    categoryId: mockCategories[0].id,
+    merchantId: mockMerchants[0].id,
+    userId: 'test-user-id',
+    createdAt: '2025-10-13T00:00:00.000Z',
+    updatedAt: '2025-10-13T00:00:00.000Z',
+    account: mockAccounts[0],
+    category: mockCategories[0],
+    merchant: mockMerchants[0]
+  },
+  {
+    id: 'test-id-2',
+    accountId: mockAccounts[1].id,
+    description: 'Another Transaction',
+    amount: 75.00,
+    date: '2025-10-14',
+    type: 'EXPENSE' as const,
+    categoryId: mockCategories[0].id,
+    merchantId: mockMerchants[1].id,
+    userId: 'test-user-id',
+    createdAt: '2025-10-14T00:00:00.000Z',
+    updatedAt: '2025-10-14T00:00:00.000Z',
+    account: mockAccounts[1],
+    category: mockCategories[0],
+    merchant: mockMerchants[1]
+  }
+]
+
+describe('TransactionsTable', () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: 0,
+          gcTime: 0
+        },
+        mutations: {
+          retry: false
+        }
+      },
+    })
+
+    // Reset mocks
+    vi.resetAllMocks()
+
+    // Mock fetch responses
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(input.toString())
+      const searchParams = url.searchParams
+      
+      // Get pagination params
+      const page = parseInt(searchParams.get('page') || '1')
+      const pageSize = parseInt(searchParams.get('pageSize') || '10')
+      const search = searchParams.get('search')
+      const sortBy = searchParams.get('sortBy')
+      const sortDirection = searchParams.get('sortDirection')
+      
+      // Filter transactions
+      let filteredTransactions = [...mockTransactions]
+      
+      if (search) {
+        filteredTransactions = filteredTransactions.filter(tx => 
+          tx.description.toLowerCase().includes(search.toLowerCase()) ||
+          tx.account.name.toLowerCase().includes(search.toLowerCase()) ||
+          (tx.merchant?.name || '').toLowerCase().includes(search.toLowerCase())
+        )
+      }
+      
+      // Sort transactions
+      if (sortBy) {
+        filteredTransactions.sort((a: any, b: any) => {
+          const aValue = a[sortBy]
+          const bValue = b[sortBy]
+          const modifier = sortDirection === 'desc' ? -1 : 1
+          
+          if (typeof aValue === 'string') {
+            return aValue.localeCompare(bValue) * modifier
+          }
+          return (aValue - bValue) * modifier
+        })
+      }
+      
+      // Paginate
+      const start = (page - 1) * pageSize
+      const paginatedTransactions = filteredTransactions.slice(start, start + pageSize)
+      
+      return new Response(JSON.stringify({
+        data: paginatedTransactions,
+        metadata: {
+          total: filteredTransactions.length,
+          page,
+          pageSize,
+          pageCount: Math.ceil(filteredTransactions.length / pageSize)
+        }
+      }))
+    })
+  })
+
+  it('renders transactions table with data', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TransactionsTable />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      mockTransactions.forEach(tx => {
+        expect(screen.getByText(tx.description)).toBeInTheDocument()
+        expect(screen.getByText(tx.account.name)).toBeInTheDocument()
+        expect(screen.getByText(`$${tx.amount.toFixed(2)}`)).toBeInTheDocument()
+      })
+    })
+  })
+
+  it('handles pagination', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TransactionsTable />
+      </QueryClientProvider>
+    )
+
+    // Wait for initial data load
+    await waitFor(() => {
+      expect(screen.getByText(mockTransactions[0].description)).toBeInTheDocument()
+    })
+
+    // Click next page
+    const nextButton = screen.getByLabelText('Go to next page')
+    fireEvent.click(nextButton)
+
+    // Verify page change request
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      const lastCall = calls[calls.length - 1]
+      expect(new URL(lastCall[0].toString()).searchParams.get('page')).toBe('2')
+    })
+  })
+
+  it('handles sorting', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TransactionsTable />
+      </QueryClientProvider>
+    )
+
+    // Wait for initial data load
+    await waitFor(() => {
+      expect(screen.getByText(mockTransactions[0].description)).toBeInTheDocument()
+    })
+
+    // Click column header to sort
+    const amountHeader = screen.getByRole('columnheader', { name: /amount/i })
+    fireEvent.click(amountHeader)
+
+    // Verify sort request
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      const lastCall = calls[calls.length - 1]
+      const params = new URL(lastCall[0].toString()).searchParams
+      expect(params.get('sortBy')).toBe('amount')
+      expect(params.get('sortDirection')).toBe('desc')
+    })
+  })
+
+  it('handles search filtering', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TransactionsTable />
+      </QueryClientProvider>
+    )
+
+    // Wait for initial data load
+    await waitFor(() => {
+      expect(screen.getByText(mockTransactions[0].description)).toBeInTheDocument()
+    })
+
+    // Enter search term
+    const searchInput = screen.getByPlaceholderText(/search/i)
+    fireEvent.change(searchInput, { target: { value: 'Test Transaction' } })
+
+    // Verify search request
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      const lastCall = calls[calls.length - 1]
+      expect(new URL(lastCall[0].toString()).searchParams.get('search')).toBe('Test Transaction')
+    })
+  })
+
+  it('handles row actions', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TransactionsTable />
+      </QueryClientProvider>
+    )
+
+    // Wait for initial data load
+    await waitFor(() => {
+      expect(screen.getByText(mockTransactions[0].description)).toBeInTheDocument()
+    })
+
+    // Click row menu
+    const actionsButton = screen.getByLabelText(/actions/i)
+    fireEvent.click(actionsButton)
+
+    // Verify menu opens
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /delete/i })).toBeInTheDocument()
+  })
+})
